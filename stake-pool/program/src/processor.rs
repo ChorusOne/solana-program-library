@@ -8,7 +8,12 @@ use crate::{
     PROGRAM_VERSION,
 };
 use bincode::deserialize;
+// A generic trait for converting a number to a value.
+// Note : A trait is a collection of methods defined for an unknown type: Self
+
 use num_traits::FromPrimitive;
+
+
 use solana_program::{
     account_info::next_account_info,
     account_info::AccountInfo,
@@ -32,11 +37,15 @@ use spl_token::state::Mint;
 /// Program state handler.
 pub struct Processor {}
 impl Processor {
+    // Ask : What are these suffixes? To deterministically generate program addresses?
     /// Suffix for deposit authority seed
     pub const AUTHORITY_DEPOSIT: &'static [u8] = b"deposit";
     /// Suffix for withdraw authority seed
     pub const AUTHORITY_WITHDRAW: &'static [u8] = b"withdraw";
+
+    // Ask : How does the word id differ from address
     /// Calculates the authority id by generating a program address.
+    /// Ask : What's happening here : very Solanish
     pub fn authority_id(
         program_id: &Pubkey,
         stake_pool: &Pubkey,
@@ -50,6 +59,9 @@ impl Processor {
         .map_err(|_| StakePoolError::InvalidProgramAddress.into())
     }
     /// Generates seed bump for stake pool authorities
+    // Ask: (or lookup) : The concept of bump seed
+    // Ask : Walkthrough entire code of Processor with David?
+
     pub fn find_authority_bump_seed(
         program_id: &Pubkey,
         stake_pool: &Pubkey,
@@ -58,6 +70,10 @@ impl Processor {
         Pubkey::find_program_address(&[&stake_pool.to_bytes()[..32], authority_type], program_id)
     }
     /// Generates stake account address for the validator
+    // Ask : I see, so for each validator : we create a stake account address 
+    // And then probably pass ownership of that to the validator
+    // The way we generate the address is deterministic 
+    // Why the word "program" in program address 
     pub fn find_stake_address_for_validator(
         program_id: &Pubkey,
         validator: &Pubkey,
@@ -70,6 +86,7 @@ impl Processor {
     }
 
     /// Checks withdraw or deposit authority
+    // Ask: 
     pub fn check_authority(
         authority_to_check: &Pubkey,
         program_id: &Pubkey,
@@ -84,6 +101,9 @@ impl Processor {
         }
         Ok(())
     }
+
+    // Ask : Fynn : This is intense syntax for a Rust noob.! Let's simplify this
+    // Ask : David : borrow()? 
 
     /// Returns validator address for a particular stake account
     pub fn get_validator(stake_account_info: &AccountInfo) -> Result<Pubkey, ProgramError> {
@@ -131,6 +151,8 @@ impl Processor {
     }
 
     /// Issue a stake_split instruction.
+    /// // Cross-Program Invokation
+    /// // Ask: Is stake.rs another program?
     pub fn stake_split<'a>(
         stake_pool: &Pubkey,
         stake_account: AccountInfo<'a>,
@@ -150,6 +172,7 @@ impl Processor {
     }
 
     /// Issue a stake_merge instruction.
+    /// // Ask: Fynn : Rust syntax 
     #[allow(clippy::too_many_arguments)]
     pub fn stake_merge<'a>(
         stake_pool: &Pubkey,
@@ -182,6 +205,8 @@ impl Processor {
         )
     }
 
+
+        // Bookmark : Here 
     /// Issue a stake_set_owner instruction.
     #[allow(clippy::too_many_arguments)]
     pub fn stake_authorize<'a>(

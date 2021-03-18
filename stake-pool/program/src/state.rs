@@ -31,6 +31,7 @@ pub struct StakePool {
     pub pool_mint: Pubkey,
     /// Owner fee account
     pub owner_fee_account: Pubkey,
+
     /// Pool token program id
     pub token_program_id: Pubkey,
     /// total stake under management
@@ -42,6 +43,7 @@ pub struct StakePool {
     /// Fee applied to deposits
     pub fee: Fee,
 }
+// Ask : Fynn : What is Some? 
 impl StakePool {
     /// Length of state data when serialized
     pub const LEN: usize = size_of::<StakePool>();

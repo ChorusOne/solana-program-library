@@ -11,10 +11,12 @@ pub mod state;
 /// Current program version
 pub const PROGRAM_VERSION: u8 = 1;
 
+// Ask : What? Fynn/David
 #[cfg(not(feature = "no-entrypoint"))]
 pub mod entrypoint;
 
 // Export current sdk types for downstream users building with a different sdk version
 pub use solana_program;
 
+// Ask : David : What is this address refering to? 
 solana_program::declare_id!("poo1B9L9nR3CrcaziKVYVpRX6A9Y1LAXYasjjfCbApj");
