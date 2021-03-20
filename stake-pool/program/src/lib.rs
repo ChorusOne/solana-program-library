@@ -19,4 +19,7 @@ pub mod entrypoint;
 pub use solana_program;
 
 // Ask : David : What is this address refering to? 
+// Ankit : Shouldn't this be dynamically set on deployment
+// David : Yeah, I am confused too. 
+// It's optional, but if you use it, you are asking "the blockchain" to deploy this program at this specific address. 
 solana_program::declare_id!("poo1B9L9nR3CrcaziKVYVpRX6A9Y1LAXYasjjfCbApj");
