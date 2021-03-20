@@ -521,6 +521,7 @@ impl Processor {
         // Validator this stake account will vote for
         let validator_info = next_account_info(account_info_iter)?;
         // Stake authority for the new stake account
+       
         let stake_authority_info = next_account_info(account_info_iter)?;
         // Withdraw authority for the new stake account
         let withdraw_authority_info = next_account_info(account_info_iter)?;
@@ -571,23 +572,50 @@ impl Processor {
         let required_lamports =
             sol_to_lamports(1.0) + rent.minimum_balance(std::mem::size_of::<stake::StakeState>());
 
+        // The funder_info key has already signed it 
+        
         // Create new stake account and fund it with lamports
+        // Only one key is signing this : the funder info by CPI
+        // We pass on the seeds to verify that the second account is a Program Account and not a system account
+        
+        // TODO : Ankit read Create_Account and ^ verify this! 
+        // Invoke_signed - should have been "invoke with seeds" !!
+        
         invoke_signed(
-            &system_instruction::create_account(
+            &system_instruction::create_account(.  // Instruction 
                 &funder_info.key, //from_pubkey
                 &stake_account_info.key, //to_pubkey
                 required_lamports,  // lamports 
                 std::mem::size_of::<stake::StakeState>() as u64, //space 
                 &stake::id(),  //owner 
             ),
-            &[funder_info.clone(), stake_account_info.clone()],
-            &[&stake_account_signer_seeds],
+            //TODO : Understand clones, how account infos are used/saved?
+            
+            &[funder_info.clone(), stake_account_info.clone()],   //Account Infos 
+            // Invoke Signed behind the scenes will extract public key 
+            
+            // I don't sign it, I provide the seed for the program address that's meant to sign this
+            &[&stake_account_signer_seeds],  // Seeds
         )?;
+        
+        // TODO : Why is this not signed?
 
+        // Invoke = actually acts as Invoke signed carrying the signature of the outer signer
+        
+        
+        // We created a Stake Account for this validator 
+        // Initialise this account (not delegated yet)
+        // Stake Authority
+        // Withdraw Authority 
+        // Lockup - Empty 
+       
         invoke(
             &stake::initialize(
                 &stake_account_info.key,
                 &stake::Authorized {
+                    // Todo : How is the stake_authority_info key generated?
+                    // It's the job of the CLI to set this to the stake pool's 
+                    // deposit authority and withdraw authority respectively
                     staker: *stake_authority_info.key,
                     withdrawer: *withdraw_authority_info.key,
                 },
@@ -997,18 +1025,39 @@ impl Processor {
     /// Processes [Deposit](enum.Instruction.html).
     pub fn process_deposit(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
+        
         // Stake pool
+        // The Pool Where User Wants to Stake 
         let stake_pool_info = next_account_info(account_info_iter)?;
+        
+        // The Validator Stake List Info 
         // Account storing validator stake list
         let validator_stake_list_info = next_account_info(account_info_iter)?;
+        
+        
+        // The user has to submit this too! WHY!!!
+        // Ok the CLI will do this anyway, but I don't like this design
+        // It means the user who's creating transaction has to use a CLI or external tool to gather all this info!
+        
         // Stake pool deposit authority
         let deposit_info = next_account_info(account_info_iter)?;
         // Stake pool withdraw authority
         let withdraw_info = next_account_info(account_info_iter)?;
+        
+        
+        // This is the "Stake Account" that the user created
+        // 1. He has to delegate stake to one of the validators in the list 
+        // 2. He has to wait for activation
+        // 3. Also looks like he has to set the "withdraw authority" and "deposit authority" of this Stake Address to be the "Stake Pool Program Manager Deposit and Withdraw Authority???"
+            // 4. Check which one 
         // Stake account to join the pool (withdraw should be set to stake pool deposit)
         let stake_info = next_account_info(account_info_iter)?;
+        
+        // What Validator did I delegate to in the pool?
         // Validator stake account to merge with
         let validator_stake_account_info = next_account_info(account_info_iter)?;
+        
+        
         // User account to receive pool tokens
         let dest_user_info = next_account_info(account_info_iter)?;
         // Account to receive pool fee tokens
@@ -1018,6 +1067,8 @@ impl Processor {
         // Clock sysvar account
         let clock_info = next_account_info(account_info_iter)?;
         let clock = &Clock::from_account_info(clock_info)?;
+        
+        // TODO 
         // Stake history sysvar account
         let stake_history_info = next_account_info(account_info_iter)?;
         let stake_history = &StakeHistory::from_account_info(stake_history_info)?;
@@ -1039,7 +1090,7 @@ impl Processor {
         // Check if stake is active
         Self::check_stake_activation(stake_info, clock, stake_history)?;
 
-        // Check authority accounts
+        // Check the keys you passed - do they match the stake pool authority keys ?
         stake_pool.check_authority_withdraw(withdraw_info.key, program_id, stake_pool_info.key)?;
         stake_pool.check_authority_deposit(deposit_info.key, program_id, stake_pool_info.key)?;
 
@@ -1087,6 +1138,9 @@ impl Processor {
             .checked_sub(fee_amount)
             .ok_or(StakePoolError::CalculationFailure)?;
 
+        // Pool Contract <-> Withdraw and Deposit Key 
+        // Ankit Pool : Initialise (Creates W AND D Key) 
+        // Pause Here at Timestamp 23:58 20 Mar 2021
         Self::stake_authorize(
             stake_pool_info.key,
             stake_info.clone(),
