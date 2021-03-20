@@ -1,5 +1,17 @@
 //! Program state processor
 
+
+// create = starting from the root of the source code 
+// By default : a file is a module. To create 
+/*
+
+pub mod <whatever> {
+    // Define a module inline 
+}
+
+To access this  use crate::{processor::whatever}
+
+*/
 use crate::{
     error::StakePoolError,
     instruction::{InitArgs, StakePoolInstruction},
@@ -13,10 +25,16 @@ use bincode::deserialize;
 
 use num_traits::FromPrimitive;
 
-
 use solana_program::{
+    // This is to iterate through account info arrays
     account_info::next_account_info,
+    // This is the data structure representing an account
     account_info::AccountInfo,
+    // Proof of History 
+    // Clock to access blocks in the blockchain (history, hashes etc) 
+    
+    
+    // Ankit : Review this again and come back 
     clock::Clock,
     decode_error::DecodeError,
     entrypoint::ProgramResult,
@@ -43,6 +61,10 @@ impl Processor {
     /// Suffix for withdraw authority seed
     pub const AUTHORITY_WITHDRAW: &'static [u8] = b"withdraw";
 
+    
+    //Stake Pool -> 50 Validators
+    // Stake Pool has 50 VASAs : 1 for each Validator 
+    
     // Ask : How does the word id differ from address
     /// Calculates the authority id by generating a program address.
     /// Ask : What's happening here : very Solanish
@@ -68,6 +90,8 @@ impl Processor {
     // c) The type of key you want to generate : deposit authority or withdraw authority 
     // @Dave : Does this map to "stake authority" and "withdraw authority" of a stake account respectively?
 
+   
+  
     pub fn find_authority_bump_seed(
         program_id: &Pubkey,
         stake_pool: &Pubkey,
@@ -103,6 +127,14 @@ impl Processor {
         }
         Ok(())
     }
+    
+    // Stake Account : stake address (keypair?), Stake Authority, Withdraw Authority 
+    // How does this correspond to the Stake Pool's Authorities - DEPOSIT and WITHDRAWAL  
+
+    // What finds to what? 
+    
+    
+    
 
 
     // Ask : David : How is thing working? This is useful to understand how data storage in an account works
@@ -112,11 +144,28 @@ impl Processor {
     // @ David : match, OK ? 
 
     /// Returns validator address for a particular stake account
+    
+    // David 
+    // An account has a data field. 
+    // A non system account / program account will have additional data 
+    // 
     pub fn get_validator(stake_account_info: &AccountInfo) -> Result<Pubkey, ProgramError> {
+        // borrow - taking unique access to the data so no one else can modify it until the deserialisation ends
+        // if something is immutable - vs something is mutable 
+        // To read : rust ownerhsip 
         let stake_state: stake::StakeState = deserialize(&stake_account_info.data.borrow())
             .or(Err(ProgramError::InvalidAccountData))?;
+        // ? Automatically return Error if there is an error ^ The question mark ensures that
+        // I have stake_state 
+        // stake_stake.state
+        // This is Enum Matching (Rust Feature) 
+        // 
         match stake_state {
+            // If the account is in the staked state, then access the voter_pubkey aka validator 
+            // otherwise fail 
             stake::StakeState::Stake(_, stake) => Ok(stake.delegation.voter_pubkey),
+            // TODO : Understand into()
+            // Explicit type conversion from StakePoolError into() ProgramError
             _ => Err(StakePoolError::WrongStakeState.into()),
         }
     }
@@ -161,6 +210,14 @@ impl Processor {
         
         // @David : OK? Heh? : is it like return validator_account?
         
+        // Result 
+        // Strongly typed language, you can add more structure to the return type 
+        
+        /* enum Result {
+  Ok(T),
+  Err(Error)
+}*/
+    
         Ok(validator_account)
     }
 
@@ -312,15 +369,26 @@ impl Processor {
         program_id: &Pubkey,
         init: InitArgs,
         accounts: &[AccountInfo],
+        
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
+        
+        // An account with some info in it (probably empty) 
         let stake_pool_info = next_account_info(account_info_iter)?;
+        
+        
+        // This chap should have signed this (checked later)
         let owner_info = next_account_info(account_info_iter)?;
+        
         let validator_stake_list_info = next_account_info(account_info_iter)?;
+        
         let pool_mint_info = next_account_info(account_info_iter)?;
+        
         let owner_fee_info = next_account_info(account_info_iter)?;
+        
         // Clock sysvar account
         let clock_info = next_account_info(account_info_iter)?;
+        
         let clock = &Clock::from_account_info(clock_info)?;
         // Rent sysvar account
         let rent_info = next_account_info(account_info_iter)?;
@@ -333,6 +401,8 @@ impl Processor {
             return Err(StakePoolError::SignatureMissing.into());
         }
 
+        // Check if stake pool is already initialised! 
+        
         let mut stake_pool = StakePool::deserialize(&stake_pool_info.data.borrow())?;
         // Stake pool account should not be already initialized
         if stake_pool.is_initialized() {
@@ -372,16 +442,26 @@ impl Processor {
         }
 
         // Check pool mint program ID
+        // Making sure owner of the mint is the owner of the pool
+        
         if pool_mint_info.owner != token_program_info.key {
             return Err(ProgramError::IncorrectProgramId);
         }
 
+        // TODO : Get back to this after reading SPL Token
+        // Revisit this to make sure u understand this 
         // Check for owner fee account to have proper mint assigned
         if *pool_mint_info.key
             != spl_token::state::Account::unpack_from_slice(&owner_fee_info.data.borrow())?.mint
         {
             return Err(StakePoolError::WrongAccountMint.into());
         }
+        
+        // Why? Revisit?
+        // Get Deposit and Withdraw Bump Seed
+        // Should have called it iterations 
+        // Also : Withdraw Authority Key
+        // Why Skip The First Key?
 
         let (_, deposit_bump_seed) = Self::find_authority_bump_seed(
             program_id,
@@ -393,15 +473,20 @@ impl Processor {
             stake_pool_info.key,
             Self::AUTHORITY_WITHDRAW,
         );
-
+         // TODO : Revisit after SPL20 
         let pool_mint = Mint::unpack_from_slice(&pool_mint_info.data.borrow())?;
 
         if !pool_mint.mint_authority.contains(&withdraw_authority_key) {
             return Err(StakePoolError::WrongMintingAuthority.into());
         }
-
+    
+        // if your data is immutable => then as many borrow
+        // borrow_mut : borrowing it as a mutable structure 
+        // Get Exclusive Lock over this - no other contract can modify this when the lock is held 
+        // Whenever writing to account storage, get a mutable write lock
         validator_stake_list.serialize(&mut validator_stake_list_info.data.borrow_mut())?;
 
+        // MSG is a function Solana provides to log to Console 
         msg!("Clock data: {:?}", clock_info.data.borrow());
         msg!("Epoch: {}", clock.epoch);
 
@@ -409,6 +494,8 @@ impl Processor {
         stake_pool.owner = *owner_info.key;
         stake_pool.deposit_bump_seed = deposit_bump_seed;
         stake_pool.withdraw_bump_seed = withdraw_bump_seed;
+        // Is this the public key or a private key ->
+        // David : This is "no way" a private key. 
         stake_pool.validator_stake_list = *validator_stake_list_info.key;
         stake_pool.pool_mint = *pool_mint_info.key;
         stake_pool.owner_fee_account = *owner_fee_info.key;
@@ -446,14 +533,25 @@ impl Processor {
         let stake_program_info = next_account_info(account_info_iter)?;
 
         // Check program ids
+        
         if *system_program_info.key != solana_program::system_program::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
+        
+        // !! Why did they duplicate stake id and same stake program?
+        // Copied : Just needed the types! 
+        // "Roobish" Disgusting though - David Geoffroey Boycott Paryente
+        
+        
+        // They copied entire stake.rs : could have just duplicated/copied the types
+        // Also ideally the RHS should be solana_program::stake_program::id() or sth similar 
+        
         if *stake_program_info.key != stake::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
 
         // Check stake account address validity
+        // Note : This bump_seed is saved to derive future keys for the same program/val_info/stake_pool_info triplet 
         let (stake_address, bump_seed) = Self::find_stake_address_for_validator(
             &program_id,
             &validator_info.key,
@@ -462,7 +560,7 @@ impl Processor {
         if stake_address != *stake_account_info.key {
             return Err(StakePoolError::InvalidStakeAccountAddress.into());
         }
-
+        // This seed will be used to generate more accounts 
         let stake_account_signer_seeds: &[&[_]] = &[
             &validator_info.key.to_bytes()[..32],
             &stake_pool_info.key.to_bytes()[..32],
@@ -473,14 +571,14 @@ impl Processor {
         let required_lamports =
             sol_to_lamports(1.0) + rent.minimum_balance(std::mem::size_of::<stake::StakeState>());
 
-        // Create new stake account
+        // Create new stake account and fund it with lamports
         invoke_signed(
             &system_instruction::create_account(
-                &funder_info.key,
-                &stake_account_info.key,
-                required_lamports,
-                std::mem::size_of::<stake::StakeState>() as u64,
-                &stake::id(),
+                &funder_info.key, //from_pubkey
+                &stake_account_info.key, //to_pubkey
+                required_lamports,  // lamports 
+                std::mem::size_of::<stake::StakeState>() as u64, //space 
+                &stake::id(),  //owner 
             ),
             &[funder_info.clone(), stake_account_info.clone()],
             &[&stake_account_signer_seeds],
