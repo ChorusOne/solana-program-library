@@ -61,6 +61,12 @@ impl Processor {
     /// Generates seed bump for stake pool authorities
     // Ask: (or lookup) : The concept of bump seed
     // Ask : Walkthrough entire code of Processor with David?
+    
+    // Update : Generate a Program Address for 
+    // a) given program ID (the main calling address of the Program)
+    // b) A Stake Pool and 
+    // c) The type of key you want to generate : deposit authority or withdraw authority 
+    // @Dave : Does this map to "stake authority" and "withdraw authority" of a stake account respectively?
 
     pub fn find_authority_bump_seed(
         program_id: &Pubkey,
@@ -69,11 +75,8 @@ impl Processor {
     ) -> (Pubkey, u8) {
         Pubkey::find_program_address(&[&stake_pool.to_bytes()[..32], authority_type], program_id)
     }
-    /// Generates stake account address for the validator
-    // Ask : I see, so for each validator : we create a stake account address 
-    // And then probably pass ownership of that to the validator
-    // The way we generate the address is deterministic 
-    // Why the word "program" in program address 
+    /// Generate a VAAS for the a) Program ID b) Stake Pool and c) Validator triple
+    /// @Dave : Can there be multiple program IDs , Can there be multiple Stake pools in one program? 
     pub fn find_stake_address_for_validator(
         program_id: &Pubkey,
         validator: &Pubkey,
@@ -85,8 +88,7 @@ impl Processor {
         )
     }
 
-    /// Checks withdraw or deposit authority
-    // Ask: 
+    // See if the authority_to_check is of type deposit or withdrawal?
     pub fn check_authority(
         authority_to_check: &Pubkey,
         program_id: &Pubkey,
@@ -102,8 +104,12 @@ impl Processor {
         Ok(())
     }
 
-    // Ask : Fynn : This is intense syntax for a Rust noob.! Let's simplify this
-    // Ask : David : borrow()? 
+
+    // Ask : David : How is thing working? This is useful to understand how data storage in an account works
+    // Who writes that data and when? Where are we serialising/deserialising
+    // Update : Load Data of Stake Account 
+    // From that data : (refer structs in stake.rs) figure out the voter pubkey 
+    // @ David : match, OK ? 
 
     /// Returns validator address for a particular stake account
     pub fn get_validator(stake_account_info: &AccountInfo) -> Result<Pubkey, ProgramError> {
@@ -114,6 +120,11 @@ impl Processor {
             _ => Err(StakePoolError::WrongStakeState.into()),
         }
     }
+
+    /// This is easy : basically generate the stake address again 
+    /// And then match it with the VASA provided
+    /// AccountInfo looks like this :
+        /// https://docs.rs/solana-program/1.5.16/solana_program/account_info/struct.AccountInfo.html
 
     /// Checks if validator stake account is a proper program address
     pub fn is_validator_stake_address(
@@ -147,6 +158,9 @@ impl Processor {
         ) {
             return Err(StakePoolError::InvalidStakeAccountAddress.into());
         }
+        
+        // @David : OK? Heh? : is it like return validator_account?
+        
         Ok(validator_account)
     }
 
