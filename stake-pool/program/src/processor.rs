@@ -1202,6 +1202,13 @@ impl Processor {
             stake_program_info.clone(),
         )?;
 
+        // This merges the user submitted stake-account with 
+        // the validator_stake_account for the relevant validator
+        // (that the user staked to)
+        // Such an instruction usually requires the sign of the stake or withdraw authority
+        // In the last steps, we pointed both to be the "stake pool withdraw" key
+        // Hence, that's passed as the signer in param 3
+        // [stake pool, withdraw, withdraw bump seed]
         Self::stake_merge(
             stake_pool_info.key,
             stake_info.clone(),
@@ -1214,6 +1221,9 @@ impl Processor {
             stake_program_info.clone(),
         )?;
 
+        // Mint and Send tokens to the user who deposited the stake account
+        // The signer here is [stake pool, withdraw, withdraw bump seed]
+        // I need to confirm if this "Stake Pool Withdraw key" is the owner of the mint
         Self::token_mint_to(
             stake_pool_info.key,
             token_program_info.clone(),
@@ -1225,6 +1235,7 @@ impl Processor {
             user_amount,
         )?;
 
+        // Mint and send fees to owner 
         Self::token_mint_to(
             stake_pool_info.key,
             token_program_info.clone(),
@@ -1235,10 +1246,14 @@ impl Processor {
             stake_pool.withdraw_bump_seed,
             fee_amount,
         )?;
+        // Update Pool Total and Stake Total 
+
         stake_pool.pool_total += pool_amount;
         stake_pool.stake_total += stake_lamports;
+        // Write this info to Stake Pool Account
         stake_pool.serialize(&mut stake_pool_info.data.borrow_mut())?;
 
+        // ?? Check with David 
         validator_list_item.balance = **validator_stake_account_info.lamports.borrow();
         validator_stake_list.serialize(&mut validator_stake_list_info.data.borrow_mut())?;
 
@@ -1375,6 +1390,14 @@ impl Processor {
 
         Ok(())
     }
+
+    // Discuss with David : This will be useful to upgrade
+    // Todo : Discuss : Upgradeability
+    // Wrapper -> Owners -> StakePool?
+    // Wrapper to remain constant
+    // StakePool to remain constant
+    // Owners can change? 
+    
     /// Processes [SetStakeAuthority](enum.Instruction.html).
     pub fn process_set_staking_auth(
         program_id: &Pubkey,
