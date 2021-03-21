@@ -614,8 +614,19 @@ impl Processor {
                 &stake_account_info.key,
                 &stake::Authorized {
                     // Todo : How is the stake_authority_info key generated?
-                    // It's the job of the CLI to set this to the stake pool's 
-                    // deposit authority and withdraw authority respectively
+                    // The CLI sets both of these to config.owner.pubkey()
+                    
+                    // In the next step : when the owner via the CLI adds this VASA
+                    // He first manually sets the Stake Authority and Withdraw Authority to be
+                    // the Stake Pool Deposit Account! 
+                    // And then invokes "add"
+
+                    // The "add" program then switches the Stake Authority and Withdraw Authority to 
+                    // the Stake Pool Withdraw Account!
+                    // Got it, this aligns with my design intuition that there are two sub-pools : Deposit and Withdraw 
+                    // And ownership of both "Stake and Withdraw Authorites" switch Ownership as follows
+                    // User -> Deposit Key of Stake Pool -> Program -> Withdraw Key of Stake Pool
+                    
                     staker: *stake_authority_info.key,
                     withdrawer: *withdraw_authority_info.key,
                 },
@@ -1141,6 +1152,26 @@ impl Processor {
         // Pool Contract <-> Withdraw and Deposit Key 
         // Ankit Pool : Initialise (Creates W AND D Key) 
         // Pause Here at Timestamp 23:58 20 Mar 2021
+
+
+        // Questions To Discuss : The user has to set this to the stake pool deposit key
+        // (not some program wide key, I think)
+        // (coz that's the signer)
+
+        // Question to Discuss : So this "stake account" is switching hands from
+        // "deposited stake" to "withdrawable stake" 
+        // And it' just unfortunate that the terms clash with 
+        // "stake authority" and "withdraw authority "
+        // So "Self::Deposit" and "Self::Withdraw" sort of represents sub-pools?
+    
+
+
+
+        // This instruction changes the Withdraw authority of the stake account
+        // From : deposit_info.key (Stake Pool Deposit Key)
+        // To : withdraw_info.key (Stake Pool Withdraw Key)
+        // Signer : [StakePoolPubkey;"deposit"; "stake_pool.deposit_bump_seed"]
+        // Type of Key Change : Withdraw Authority 
         Self::stake_authorize(
             stake_pool_info.key,
             stake_info.clone(),
@@ -1152,6 +1183,12 @@ impl Processor {
             clock_info.clone(),
             stake_program_info.clone(),
         )?;
+
+        //  This instruction changes the Staking authority of the stake account
+        // From : deposit_info.key (Stake Pool Deposit Key)
+        // To : withdraw_info.key 
+        // Signer : [StakePoolPubkey;"deposit"; "stake_pool.deposit_bump_seed"]
+        // Type of Key Change : Stake Authority 
 
         Self::stake_authorize(
             stake_pool_info.key,
