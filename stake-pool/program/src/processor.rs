@@ -403,10 +403,11 @@ impl Processor {
         let rent = &Rent::from_account_info(rent_info)?;
         let token_program_info = next_account_info(account_info_iter)?;
 
-        if !manager_info.is_signer {
-            msg!("Manager did not sign initialization");
-            return Err(StakePoolError::SignatureMissing.into());
-        }
+        // Fynn: Removed the need of manager to sign the transaction
+        // if !manager_info.is_signer {
+        //     msg!("Manager did not sign initialization");
+        //     return Err(StakePoolError::SignatureMissing.into());
+        // }
 
         let mut stake_pool = StakePool::try_from_slice(&stake_pool_info.data.borrow())?;
         if !stake_pool.is_uninitialized() {

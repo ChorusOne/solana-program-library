@@ -25,7 +25,7 @@ pub enum StakePoolInstruction {
     ///   Initializes a new StakePool.
     ///
     ///   0. `[w]` New StakePool to create.
-    ///   1. `[s]` Manager
+    ///   1. `[]` Manager
     ///   2. `[]` Staker
     ///   3. `[w]` Uninitialized validator stake list storage account
     ///   4. `[]` Reserve stake account must be initialized, have zero balance,
